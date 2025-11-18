@@ -1,17 +1,18 @@
-// api/tasks.js → handler para Vercel
-
-import express from "express";
 import dotenv from "dotenv";
-import taskRoutes from "../routes/tasks.js";
+import express from "express";
+import taskRoutes from "./routes/tasks.js";
 
 dotenv.config();
-
 const app = express();
+
 app.use(express.json());
 
-// IMPORTANTE: sin prefijo "/api/tasks" aquí
-// Porque Vercel ya monta este handler en "/api/tasks"
-app.use(taskRoutes);
+// Rutas
+app.use("/api/tasks", taskRoutes);
 
-// Express app es una función (req, res), la exportamos tal cual
-export default app;
+// Ruta de prueba
+app.get("/", (req, res) => res.send("API Tasks funcionando ✅"));
+
+// Servidor
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
