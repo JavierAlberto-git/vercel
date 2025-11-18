@@ -122,8 +122,24 @@ fun EditTaskCard(
     var taskStatus by remember { mutableStateOf(task.estatus == 1) }
     var isEditing by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
 
-    val datePickerState = rememberDatePickerState()
+    // 🕒 calcular "hoy" en UTC, a las 00:00
+    val todayUtcMillis = remember {
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        cal.timeInMillis
+    }
+
+    // 📅 state del DatePicker, inicializado en hoy
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = todayUtcMillis
+    )
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -313,17 +329,35 @@ fun EditTaskCard(
         }
     }
 
-    // DatePicker Dialog
+    // DatePicker Dialog - CORREGIDO con validación y UTC
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { millis ->
-                        val date = Date(millis)
-                        val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-                        taskDate = formatter.format(date)
+                    val selectedMillis = datePickerState.selectedDateMillis
+
+                    if (selectedMillis == null) {
+                        // Nada seleccionado
+                        errorMessage = "Debe seleccionar una fecha válida"
+                        showErrorDialog = true
+                        return@TextButton
                     }
+
+                    // 🕒 Comparamos contra hoy (en UTC) para no permitir fechas pasadas
+                    if (selectedMillis < todayUtcMillis) {
+                        errorMessage = "No puedes seleccionar una fecha anterior a hoy"
+                        showErrorDialog = true
+                        // NO cerramos el diálogo
+                        return@TextButton
+                    }
+
+                    // ✅ Formatear en UTC para evitar que se recorra un día
+                    val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
+                        timeZone = TimeZone.getTimeZone("UTC")
+                    }
+                    taskDate = formatter.format(Date(selectedMillis))
+
                     showDatePicker = false
                 }) {
                     Text("Aceptar", color = PrimaryBlue)
@@ -344,5 +378,22 @@ fun EditTaskCard(
                 )
             )
         }
+    }
+
+    // Diálogo de error
+    if (showErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showErrorDialog = false },
+            title = { Text("Error", fontWeight = FontWeight.Bold) },
+            text = { Text(errorMessage) },
+            confirmButton = {
+                Button(
+                    onClick = { showErrorDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                ) {
+                    Text("Entendido")
+                }
+            }
+        )
     }
 }

@@ -37,7 +37,21 @@ fun AddTaskScreen(navController: NavHostController, viewModel: TaskViewModel) {
     var errorMessage by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    val datePickerState = rememberDatePickerState()
+    // 🕒 calcular "hoy" en UTC, a las 00:00
+    val todayUtcMillis = remember {
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        cal.timeInMillis
+    }
+
+    // 📅 state del DatePicker, inicializado en hoy
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = todayUtcMillis
+    )
 
     Scaffold(
         topBar = {
@@ -152,11 +166,10 @@ fun AddTaskScreen(navController: NavHostController, viewModel: TaskViewModel) {
                         plannedDate // fallback
                     }
 
-                    // Crear objeto Task correcto para la API
                     val newTask = Task(
                         id = null,
                         nombre = taskName.trim(),
-                        estatus = 0,         // 0 = no hecha
+                        estatus = 0,
                         fechaEntrega = apiDate
                     )
 
@@ -209,9 +222,11 @@ fun AddTaskScreen(navController: NavHostController, viewModel: TaskViewModel) {
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        val date = Date(millis)
-                        val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-                        plannedDate = formatter.format(date)
+                        // ✅ Formatear en UTC para evitar el "un día menos"
+                        val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
+                            timeZone = TimeZone.getTimeZone("UTC")
+                        }
+                        plannedDate = formatter.format(Date(millis))
                     }
                     showDatePicker = false
                 }) {
@@ -224,21 +239,64 @@ fun AddTaskScreen(navController: NavHostController, viewModel: TaskViewModel) {
                 }
             }
         ) {
-            DatePicker(
-                state = datePickerState,
-                colors = DatePickerDefaults.colors(
-                    selectedDayContainerColor = PrimaryBlue,
-                    todayContentColor = PrimaryBlue,
-                    todayDateBorderColor = PrimaryBlue
-                )
-            )
+            // DatePicker Dialog
+            if (showDatePicker) {
+                DatePickerDialog(
+                    onDismissRequest = { showDatePicker = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val selectedMillis = datePickerState.selectedDateMillis
+
+                            if (selectedMillis == null) {
+                                // Nada seleccionado
+                                errorMessage = "Debe seleccionar una fecha válida"
+                                showErrorDialog = true
+                                return@TextButton
+                            }
+
+                            // 🕒 Comparamos contra hoy (en UTC) para no permitir fechas pasadas
+                            if (selectedMillis < todayUtcMillis) {
+                                errorMessage = "No puedes seleccionar una fecha anterior a hoy"
+                                showErrorDialog = true
+                                // NO cerramos el diálogo
+                                return@TextButton
+                            }
+
+                            // ✅ Formatear en UTC para evitar que se recorra un día
+                            val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
+                                timeZone = TimeZone.getTimeZone("UTC")
+                            }
+                            plannedDate = formatter.format(Date(selectedMillis))
+
+                            showDatePicker = false
+                        }) {
+                            Text("Aceptar", color = PrimaryBlue)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDatePicker = false }) {
+                            Text("Cancelar", color = PrimaryBlue)
+                        }
+                    }
+                ) {
+                    DatePicker(
+                        state = datePickerState,
+                        colors = DatePickerDefaults.colors(
+                            selectedDayContainerColor = PrimaryBlue,
+                            todayContentColor = PrimaryBlue,
+                            todayDateBorderColor = PrimaryBlue
+                        )
+                    )
+                }
+            }
+
         }
     }
 
     // ÉXITO
     if (showSuccessDialog) {
         AlertDialog(
-            onDismissRequest = { },  // evita cerrarlo tocando afuera
+            onDismissRequest = { },
             icon = {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,

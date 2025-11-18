@@ -3,6 +3,7 @@ package com.example.practica3room.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.practica3room.apiclient.RetrofitClient
+import com.example.practica3room.model.DeleteRequest
 import com.example.practica3room.model.Task
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,104 +13,108 @@ class TaskViewModel : ViewModel() {
 
     private val api = RetrofitClient.api
 
-    // Lista de tareas expuesta a la UI (antes venía de Room)
     private val _allTasks = MutableStateFlow<List<Task>>(emptyList())
     val allTasks: StateFlow<List<Task>> = _allTasks
 
     init {
-        // Cargar tareas al iniciar
         loadTasks()
     }
 
-    // Obtener todas las tareas desde la API
+    // GET /api/tasks
     fun loadTasks() {
         viewModelScope.launch {
             try {
-                _allTasks.value = api.getTasks()
+                val tareas = api.getTasks()
+                _allTasks.value = tareas
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
-    // Crear tarea en la API
+    // POST /api/tasks
     fun insertTask(task: Task) {
         viewModelScope.launch {
             try {
-                val created = api.createTask(task)
-                _allTasks.value = _allTasks.value + created
+                api.createTask(task)
+                // recargar desde el servidor para traer el id correcto
+                loadTasks()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
-    // Actualizar tarea en la API
+    // PUT /api/tasks  (el Task YA debe traer id)
     fun updateTask(task: Task) {
         viewModelScope.launch {
             try {
                 val id = task.id ?: return@launch
-                api.updateTask(id, task)
-                // Refrescar lista desde el servidor
-                loadTasks()
+                val resp = api.updateTask(task)
+                if (resp.isSuccessful) {
+                    loadTasks()
+                } else {
+                    println("Error updateTask: ${resp.code()} ${resp.message()}")
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
-    // Eliminar tarea por ID en la API
+    // DELETE /api/tasks  con body { "id": taskId }
     fun deleteTask(taskId: Int) {
         viewModelScope.launch {
             try {
-                api.deleteTask(taskId)
-                _allTasks.value = _allTasks.value.filter { it.id != taskId }
+                val resp = api.deleteTask(DeleteRequest(taskId))
+                if (resp.isSuccessful) {
+                    loadTasks()
+                } else {
+                    println("Error deleteTask: ${resp.code()} ${resp.message()}")
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
-    // Obtener tarea por ID desde la API
-    suspend fun getTaskById(taskId: Int): Task? {
-        return try {
-            api.getTask(taskId)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
-
-    // Actualizar solo el estatus (true/false -> 1/0)
+    // Cambiar solo estatus (true/false -> 1/0)
     fun updateTaskStatus(taskId: Int, newStatus: Boolean) {
         viewModelScope.launch {
             try {
                 val current = _allTasks.value.find { it.id == taskId } ?: return@launch
-                val updated = current.copy(estatus = if (newStatus) 1 else 0)
-                api.updateTask(taskId, updated)
-                loadTasks()
+                val updated = current.copy(
+                    estatus = if (newStatus) 1 else 0
+                )
+                val resp = api.updateTask(updated)
+                if (resp.isSuccessful) {
+                    loadTasks()
+                } else {
+                    println("Error updateTaskStatus: ${resp.code()} ${resp.message()}")
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
-    // Eliminar todas las tareas (no tienes endpoint, las borramos una por una)
+    // Eliminar todas (borrando una por una)
     fun deleteAllTasks() {
         viewModelScope.launch {
             try {
                 val tasks = _allTasks.value
                 tasks.forEach { task ->
-                    task.id?.let { api.deleteTask(it) }
+                    task.id?.let { id ->
+                        api.deleteTask(DeleteRequest(id))
+                    }
                 }
-                _allTasks.value = emptyList()
+                loadTasks()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
-    // Marcar tarea como completada (solo atajo)
     fun markTaskAsCompleted(taskId: Int) {
         updateTaskStatus(taskId, true)
     }
