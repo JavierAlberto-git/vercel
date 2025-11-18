@@ -9,9 +9,9 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// IMPORTANTE: sin prefijo "/api/tasks" aquí
-// Porque Vercel ya monta este handler en "/api/tasks"
-app.use(taskRoutes);
+// Montamos el router directamente en la raíz del handler
+// Vercel ya monta este archivo en /api/tasks
+app.use("/", taskRoutes);
 
-// Express app es una función (req, res), la exportamos tal cual
+// Exportamos la app de Express como handler
 export default app;
