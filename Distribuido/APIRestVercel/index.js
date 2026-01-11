@@ -1,18 +1,12 @@
-import dotenv from "dotenv";
-import express from "express";
-import taskRoutes from "./routes/tasks.js";
+const express = require("express");
+const cors = require("cors");
 
-dotenv.config();
 const app = express();
 
+app.use(cors());
 app.use(express.json());
 
-// Rutas
-app.use("/api/tasks", taskRoutes);
+app.use("/api", require("./routes/auth.routes"));
+app.use("/api", require("./routes/task.routes"));
 
-// Ruta de prueba
-app.get("/", (req, res) => res.send("API Tasks funcionando ✅"));
-
-// Servidor
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
+module.exports = app;

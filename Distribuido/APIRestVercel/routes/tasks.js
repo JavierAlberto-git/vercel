@@ -1,18 +1,12 @@
-import express from "express";
-import {
-  getTasks,
-  getTask,
-  createTask,
-  updateTask,
-  deleteTask,
-} from "../controllers/taskController.js";
+const router = require("express").Router();
+const auth = require("../middleware/auth.middleware");
+const ctrl = require("../controllers/task.controller");
 
-const router = express.Router();
+// Todas estas rutas deben existir así porque Android las llama igual:
+router.get("/tasks", auth, ctrl.getTasks);         // GET /api/tasks
+router.get("/tasks/:id", auth, ctrl.getTask);      // GET /api/tasks/:id
+router.post("/tasks", auth, ctrl.createTask);      // POST /api/tasks
+router.put("/tasks/:id", auth, ctrl.updateTask);   // PUT /api/tasks/:id
+router.delete("/tasks/:id", auth, ctrl.deleteTask);// DELETE /api/tasks/:id
 
-router.get("/", getTasks);
-router.get("/:id", getTask);
-router.post("/", createTask);
-router.put("/:id", updateTask);
-router.delete("/:id", deleteTask);
-
-export default router;
+module.exports = router;
